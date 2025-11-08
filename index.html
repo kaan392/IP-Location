@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IP Location — Force Labs</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root{
+      --bg1:#071428;
+      --bg2:#081a2b;
+      --card:#0f1720cc;
+      --glass: rgba(255,255,255,0.04);
+      --accent:#00c2ff;
+      --accent-2:#5eead4;
+      --muted:#98a0ab;
+      --success:#22c55e;
+      --danger:#ef4444;
+      --max-w:1100px;
+      --radius:14px;
+      --glass-border: rgba(255,255,255,0.06);
+      --glass-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Page */
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:#e6eef6}
+    .wrap{max-width:var(--max-w);margin:32px auto;padding:28px;display:grid;gap:20px;
+          grid-template-columns: 1fr; align-items:start;}
+    @media(min-width:1000px){ .wrap{grid-template-columns: 460px 1fr;} }
+
+    /* Header */
+    header{display:flex;align-items:center;gap:14px}
+    .logo{
+      width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(2,6,23,0.6);
+    }
+    .logo svg{width:34px;height:34px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.3))}
+    h1{font-size:1.3rem;margin:0}
+    .subtitle{color:var(--muted);font-size:0.92rem;margin-top:4px}
+
+    /* Card left */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:var(--radius); padding:18px; box-shadow:var(--glass-shadow);
+      border:1px solid var(--glass-border); backdrop-filter: blur(8px);
+    }
+
+    .search {
+      display:flex; gap:10px; align-items:center;
+    }
+    .input {
+      flex:1; display:flex; gap:10px; align-items:center;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);
+    }
+    .input input{
+      width:100%; background:transparent; border:0; outline:none; color:inherit;
+      font-size:1rem;padding:6px;
+    }
+    .btn {
+      background: linear-gradient(180deg,var(--accent),#00a3d1);
+      border:0;color:#032; padding:10px 14px;border-radius:10px;font-weight:600; cursor:pointer;
+      box-shadow:0 6px 18px rgba(0,194,255,0.08); transition:transform .14s ease, box-shadow .14s;
+    }
+    .btn:active{ transform:translateY(1px) }
+    .btn[disabled]{opacity:.6;cursor:default}
+    .small{font-size:0.85rem;color:var(--muted);margin-top:8px}
+
+    /* Info rows */
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+    .info-item{
+      background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.008));
+      padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);
+    }
+    .info-title{font-size:0.78rem;color:var(--muted);margin-bottom:6px}
+    .info-value{font-size:1rem;font-weight:700;letter-spacing:0.2px}
+
+    /* Map / right column */
+    .map-wrap{height:72vh;border-radius:var(--radius);overflow:hidden;border:1px solid rgba(255,255,255,0.04);box-shadow:var(--glass-shadow)}
+    #map{height:100%;width:100%}
+
+    /* Actions row */
+    .actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer}
+    .copy-ok{background:var(--success);color:#052a0a;padding:8px 12px;border-radius:8px;border:0}
+
+    /* Footer */
+    footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;padding-top:10px;color:var(--muted);font-size:0.9rem}
+    .badge{background:linear-gradient(90deg,#0b2233aa,#022b3aaa);padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.03)}
+
+    /* Loader and messages */
+    .loader{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.12);border-top-color:var(--accent);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .muted{color:var(--muted)}
+    .error{color:var(--danger);font-weight:700}
+
+    /* small screens */
+    @media(max-width:999px){
+      .map-wrap{height:40vh}
+      .wrap{padding:16px}
+      header{gap:10px}
+      h1{font-size:1.1rem}
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap" role="main" aria-labelledby="title">
+    <div>
+      <header>
+        <div class="logo" aria-hidden="true">
+          <!-- simple professional SVG mark -->
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="3" y="3" width="42" height="42" rx="10" fill="white" opacity="0.06"/>
+            <path d="M12 28c0-6.627 5.373-12 12-12v0" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M24 16v16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+            <circle cx="34" cy="14" r="4" fill="white" opacity="0.9"/>
+          </svg>
+        </div>
+        <div>
+          <h1 id="title">IP Location — Force Labs</h1>
+          <div class="subtitle muted">Kurumsal görünümlü, gizlilik odaklı IP konum bulucu</div>
+        </div>
+      </header>
+
+      <section class="card" aria-labelledby="searchLabel" style="margin-top:18px">
+        <div id="searchLabel" class="small muted">IP arama — boş bırak kendi IP</div>
+
+        <div class="search" style="margin-top:8px">
+          <div class="input" role="search" aria-label="IP arama alanı">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="opacity:.85">
+              <path d="M21 21l-4.35-4.35" stroke="#e6eef6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" stroke="#e6eef6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input id="ipInput" type="text" inputmode="text" autocomplete="off" placeholder="Ör: 8.8.8.8 veya boş bırak" aria-label="IP adresi"/>
+          </div>
+          <button id="btnSearch" class="btn" aria-label="Sorgula">Sorgula</button>
+        </div>
+
+        <div class="small muted" style="margin-top:8px">Açıklama: IP'ler yaklaşık konum verir. Hassas takip yasal süreç gerektirir.</div>
+
+        <div id="statusRow" class="actions" style="margin-top:12px">
+          <div id="liveLoader" style="display:none;align-items:center;gap:8px"><div class="loader" aria-hidden="true"></div><div class="muted">Sorgulanıyor...</div></div>
+          <div id="lastSeen" class="muted" style="display:none">Son sorgu: <span id="lastTs"></span></div>
+        </div>
+
+        <div class="info-grid" id="infoGrid" style="display:none">
+          <div class="info-item">
+            <div class="info-title">IP</div>
+            <div class="info-value" id="v_ip">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-title">ISS / Ağ</div>
+            <div class="info-value" id="v_isp">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-title">Ülke</div>
+            <div class="info-value" id="v_country">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-title">Şehir / Bölge</div>
+            <div class="info-value" id="v_city">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-title">Koordinat (lat, lon)</div>
+            <div class="info-value" id="v_coords">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-title">Zaman Dilimi</div>
+            <div class="info-value" id="v_tz">—</div>
+          </div>
+        </div>
+
+        <div id="actionsAfter" class="actions" style="display:none">
+          <button id="btnCopy" class="ghost" title="Koordinatları kopyala">Kopyala</button>
+          <button id="btnOpen" class="ghost" title="Haritada aç">Haritada Aç</button>
+          <button id="btnHistory" class="ghost" title="Geçmiş sorgular">Geçmiş</button>
+        </div>
+
+        <div id="msg" style="margin-top:10px"></div>
+
+      </section>
+
+      <footer>
+        <div class="badge">Force Labs</div>
+        <div class="muted">© <span id="year"></span> Force Labs — Güvenlik ve Gizlilik Öncelikli</div>
+      </footer>
+    </div>
+
+    <!-- right column: map -->
+    <div>
+      <div class="map-wrap card" role="region" aria-label="Harita">
+        <div id="map"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // --- Utils ---
+    const $ = id => document.getElementById(id);
+    const nowY = new Date().getFullYear(); $('year').textContent = nowY;
+
+    function isValidIP(s){
+      if(!s) return true; // empty allowed -> own IP
+      // basic IPv4/IPv6 pattern (not exhaustive)
+      const ipv4 = /^(25[0-5]|2[0-4]\d|[01]?\d?\d)(\.(25[0-5]|2[0-4]\d|[01]?\d?\d)){3}$/;
+      const ipv6 = /^([0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}$/i;
+      return ipv4.test(s) || ipv6.test(s);
+    }
+
+    function setStatus(loading){
+      $('liveLoader').style.display = loading ? 'flex' : 'none';
+      $('btnSearch').disabled = loading;
+      $('msg').textContent = '';
+    }
+    function showMsg(text, cls){
+      $('msg').textContent = text;
+      $('msg').className = cls ? cls : '';
+    }
+
+    // --- Map init ---
+    let map = L.map('map', {center: [39.0, 35.0], zoom: 5, zoomControl: true, attributionControl: true});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    let marker = null;
+
+    // --- Storage (history) ---
+    const histKey = 'ipgeo_history_v1';
+    function saveHistory(item){
+      try{
+        const arr = JSON.parse(localStorage.getItem(histKey) || '[]');
+        arr.unshift(item);
+        // keep last 20 unique
+        const uniq = [];
+        for(const i of arr){
+          if(!uniq.find(x=>x.ip===i.ip && x.ts===i.ts)) uniq.push(i);
+          if(uniq.length>=20) break;
+        }
+        localStorage.setItem(histKey, JSON.stringify(uniq));
+      }catch(e){}
+    }
+    function showHistory(){
+      const arr = JSON.parse(localStorage.getItem(histKey) || '[]');
+      if(!arr.length){ alert('Geçmiş yok'); return; }
+      const list = arr.map(a=>`${new Date(a.ts).toLocaleString()} — ${a.ip} — ${a.city || '-'} (${a.lat?.toFixed(4)},${a.lon?.toFixed(4)})`).join('\n');
+      alert(list);
+    }
+
+    // --- Fetch with timeout ---
+    async function fetchWithTimeout(url, opts={}, ms=10000){
+      const ctrl = new AbortController();
+      const id = setTimeout(()=>ctrl.abort(), ms);
+      try{
+        const res = await fetch(url, {...opts, signal: ctrl.signal});
+        clearTimeout(id);
+        return res;
+      }catch(e){ clearTimeout(id); throw e; }
+    }
+
+    // --- Main logic ---
+    async function queryIP(ip){
+      // Use ipapi.co (HTTPS). Returns JSON. No API key for basic info.
+      const target = ip ? `https://ipapi.co/${encodeURIComponent(ip)}/json/` : `https://ipapi.co/json/`;
+      const res = await fetchWithTimeout(target, {}, 10000);
+      if(!res.ok) throw new Error('API hatası: ' + res.status);
+      const j = await res.json();
+      if(j.error) throw new Error(j.reason || 'Bilinmeyen API hatası');
+      return j;
+    }
+
+    async function displayResult(j){
+      $('infoGrid').style.display = 'grid';
+      $('actionsAfter').style.display = 'flex';
+      $('v_ip').textContent = j.ip || '-';
+      $('v_isp').textContent = j.org || (j.org_name || '-') ;
+      $('v_country').textContent = (j.country_name || '-') + (j.country_code ? ' ('+j.country_code+')' : '');
+      $('v_city').textContent = (j.city || '-') + (j.region || '') ;
+      const lat = Number(j.latitude ?? j.lat ?? j.latitude);
+      const lon = Number(j.longitude ?? j.lon ?? j.longitude);
+      $('v_coords').textContent = (isFinite(lat) && isFinite(lon)) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : '-';
+      $('v_tz').textContent = j.timezone || (j.utc_offset || '-') ;
+
+      if(isFinite(lat) && isFinite(lon)){
+        map.setView([lat, lon], 11, {animate:true});
+        if(marker) marker.setLatLng([lat, lon]);
+        else marker = L.marker([lat, lon]).addTo(map);
+      }
+    }
+
+    // --- UI bindings ---
+    $('btnSearch').addEventListener('click', async ()=>{
+      const ip = $('ipInput').value.trim();
+      if(!isValidIP(ip)){ showMsg('Geçersiz IP formatı', 'error'); return; }
+      setStatus(true);
+      try{
+        const j = await queryIP(ip);
+        await displayResult(j);
+        const item = { ip: j.ip || ip || 'self', city: j.city||'', lat: Number(j.latitude ?? j.lat), lon: Number(j.longitude ?? j.lon), ts: Date.now() };
+        saveHistory(item);
+        $('lastSeen').style.display = 'block';
+        $('lastTs').textContent = new Date().toLocaleString();
+        showMsg('Başarılı', 'muted');
+      }catch(e){
+        showMsg('Hata: ' + (e.message || e), 'error');
+      }finally{ setStatus(false); }
+    });
+
+    $('ipInput').addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') { $('btnSearch').click(); }
+    });
+
+    $('btnCopy').addEventListener('click', ()=>{
+      const coords = $('v_coords').textContent;
+      if(!coords || coords === '-') return showMsg('Kopyalanacak koordinat yok', 'error');
+      navigator.clipboard?.writeText(coords).then(()=> {
+        $('btnCopy').textContent = 'Kopyalandı';
+        setTimeout(()=> $('btnCopy').textContent = 'Kopyala', 1500);
+      }).catch(()=> showMsg('Kopyalama başarısız', 'error'));
+    });
+
+    $('btnOpen').addEventListener('click', ()=>{
+      const c = $('v_coords').textContent;
+      if(!c || c === '-') return showMsg('Koordinat yok', 'error');
+      const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(c);
+      window.open(url, '_blank', 'noopener');
+    });
+
+    $('btnHistory').addEventListener('click', showHistory);
+
+    // --- Auto query on load (optional) ---
+    (async function init(){
+      // If user has query param '?ip=...' then auto-run
+      const params = new URLSearchParams(location.search);
+      const ip = params.get('ip') || '';
+      if(ip){ $('ipInput').value = ip; $('btnSearch').click(); return; }
+      // else optionally auto-query own IP after short delay
+      // Comment/uncomment below line if you want immediate auto lookup:
+      // setTimeout(()=> $('btnSearch').click(), 600);
+    })();
+  </script>
+</body>
+</html>
